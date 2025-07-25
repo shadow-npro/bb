@@ -1,0 +1,33 @@
+name: Deploy Bot
+
+on:
+  push:
+    branches:
+      - main  # Change to your deploy branch
+
+jobs:
+  deploy:
+    name: Deploy to Remote Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          echo "${{ secrets.DEPLOY_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Copy files to server
+        run: |
+          rsync -avz -e "ssh -i key.pem -o StrictHostKeyChecking=no -p ${{ secrets.PORT }}" \
+            --exclude=".git" --exclude="node_modules" ./ ${{ secrets.USERNAME }}@${{ secrets.HOST }}:${{ secrets.BOT_PATH }}
+
+      - name: SSH & Restart Bot
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no -p ${{ secrets.PORT }} ${{ secrets.USERNAME }}@${{ secrets.HOST }} << 'EOF'
+            cd ${{ secrets.BOT_PATH }}
+            npm install
+            pm2 restart bot || pm2 start index.js --name bot
+          EOF
